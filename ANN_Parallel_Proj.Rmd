@@ -1,0 +1,67 @@
+---
+title: "Improving Artificial Neural Network Training and Hyperparameter Tuning Times via Parallelization"
+subtitle: 'Using the Caret Tuning and H2o Machine Learning Frameworks'
+author:
+- name: Franklin Fuchs
+  affiliation: University of Nevada, Reno
+output:
+  html_document:
+        toc: true 
+        toc_float: true
+        toc_depth: 2
+        number_sections: true 
+        theme: cosmo
+header-includes:
+- \usepackage{amsmath}
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{array}
+- \usepackage{multirow}
+- \usepackage{wrapfig}
+- \usepackage{float}
+- \usepackage{colortbl}
+- \usepackage{pdflscape}
+- \usepackage{tabu}
+- \usepackage{threeparttable}
+- \usepackage{threeparttablex}
+- \usepackage[normalem]{ulem}
+- \usepackage{makecell}
+- \usepackage{xcolor}
+---
+
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE, autodep=TRUE, cache.comments=TRUE,echo = TRUE,fig.align = 'center', comment = NA, message=FALSE,warning=FALSE,error=FALSE,results='hold')
+
+
+set.seed(122)
+```
+
+# Introduction
+
+The primary aim for this project is to consider approaches to reducing Artificial Neural Network (ANN) training times by using multiple methods and tools within the Caret and H2o frameworks. The main motivation for this project comes from my interest in reducing training times for complex machine learning models, since training times for such models can take up to months, especially when working with data that have a large amount of predictors and observations. Although dimensionality reduction methods such as Principal Components Analysis (PCA) improve model training times by reducing the amount of predictors, such methods will not be considered within this project. This project will instead focus on parallelization of both the ANN model fitting and the Hyperparameter Tuning process to reduce total training time.
+
+## The DataSet
+## Caret and H2o
+## Artificial Neural Networks
+## Parallelization
+
+# Data Preparation
+
+## Exploratory Data Analysis
+## Data Pre-Processing
+
+# Fitting Unparallelized Models
+
+# Fitting Parallelized Models
+
+# Results and Discussion
+
+## Performance Metrics
+## Plots
+
+# References
+
+## Papers
+## Books
+## R Packages
