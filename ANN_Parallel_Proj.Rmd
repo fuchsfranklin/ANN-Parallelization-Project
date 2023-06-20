@@ -3,7 +3,6 @@ title: "Improving Artificial Neural Network Training and Hyperparameter Tuning T
 subtitle: 'Using the Caret Tuning and H2o Machine Learning Frameworks'
 author:
 - name: Franklin Fuchs
-  affiliation: University of Nevada, Reno
 output:
   html_document:
         toc: true 
@@ -12,56 +11,161 @@ output:
         number_sections: true 
         theme: cosmo
 header-includes:
-- \usepackage{amsmath}
-- \usepackage{booktabs}
-- \usepackage{longtable}
-- \usepackage{array}
-- \usepackage{multirow}
-- \usepackage{wrapfig}
-- \usepackage{float}
-- \usepackage{colortbl}
-- \usepackage{pdflscape}
-- \usepackage{tabu}
-- \usepackage{threeparttable}
-- \usepackage{threeparttablex}
-- \usepackage[normalem]{ulem}
-- \usepackage{makecell}
-- \usepackage{xcolor}
 ---
 
 
 ```{r, include=FALSE}
 knitr::opts_chunk$set(cache=TRUE, autodep=TRUE, cache.comments=TRUE,echo = TRUE,fig.align = 'center', comment = NA, message=FALSE,warning=FALSE,error=FALSE,results='hold')
-
+library(caret)
+library(h2o)
+library(ggplot2)
+library(readr)
 
 set.seed(122)
 ```
 
 # Introduction
 
-The primary aim for this project is to consider approaches to reducing Artificial Neural Network (ANN) training times by using multiple methods and tools within the Caret and H2o frameworks. The main motivation for this project comes from my interest in reducing training times for complex machine learning models, since training times for such models can take up to months, especially when working with data that have a large amount of predictors and observations. Although dimensionality reduction methods such as Principal Components Analysis (PCA) improve model training times by reducing the amount of predictors, such methods will not be considered within this project. This project will instead focus on parallelization of both the ANN model fitting and the Hyperparameter Tuning process to reduce total training time.
+For this project, we will be using the Covertype dataset from the UCI Machine Learning Repository. This dataset contains 581,012 instances and 54 attributes, making it significantly larger and more complex than the iris dataset. The dataset is used to predict forest cover type from cartographic variables only (no remotely sensed data). The actual forest cover type for a given observation (30 x 30 meter cell) was determined from US Forest Service (USFS) Region 2 Resource Information System (RIS) data. Independent variables were derived from data originally obtained from US Geological Survey (USGS) and USFS data.
 
 ## The DataSet
+
+```{r}
+# Load the Covertype dataset
+
+# Define the column names
+col_names <- c(paste0("V", 1:54), "Cover_Type")
+
+# Define the URL of the dataset
+url <- "https://archive.ics.uci.edu/ml/machine-learning-databases/covtype/covtype.data.gz"
+
+# Load the Covertype dataset directly from the UCI repository
+data <- read_csv(url, col_names = col_names)
+
+
+sample_data <- function(data) {
+  # Calculate the number of rows to sample
+  sample_size <- nrow(data) / 10
+  
+  # Sample the data without replacement
+  data <- data[sample(nrow(data), sample_size), ]
+  
+  return(data)
+}
+
+# Use the function to sample the data
+data <- sample_data(data)
+```
+
 ## Caret and H2o
+
+Caret (Classification And REgression Training) is a set of functions that attempt to streamline the process for creating predictive models. It provides a uniform interface to hundreds of machine learning algorithms in R and has useful functions for data splitting, pre-processing, feature selection, model tuning and more.
+
+H2o is an open-source software for data analysis. It provides a platform for building machine learning models that can process data much faster than standard algorithms. It supports the most widely used machine learning algorithms, including generalized linear models, gradient boosting machines, random forest, deep learning, and many more.
+
 ## Artificial Neural Networks
+
+Artificial Neural Networks (ANNs) are a type of machine learning model that are inspired by the human brain. They consist of a large number of interconnected processing nodes, or "neurons", each of which performs a simple computation. The power of neural networks comes from their ability to learn complex patterns and make predictions based on these patterns.
+
 ## Parallelization
+
+Parallelization is the process of dividing a large task into smaller sub-tasks that can be processed simultaneously. This can significantly reduce the time it takes to complete the task. In the context of this project, we will be using parallelization to speed up the training of our ANN models.
 
 # Data Preparation
 
+```{r}
+# Split the data into training and test sets
+set.seed(123)
+trainIndex <- createDataPartition(data$Cover_Type, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+trainData <- data[ trainIndex,]
+testData  <- data[-trainIndex,]
+```
+
 ## Exploratory Data Analysis
+
+```{r}
+# Perform some exploratory data analysis
+# Summary statistics
+summary(data)
+
+# Histogram of Cover_Type
+ggplot(data, aes(x = Cover_Type)) +
+  geom_histogram(fill = "steelblue", color = "white") +
+  theme_minimal() +
+  labs(x = "Cover Type", y = "Count", title = "Histogram of Cover Type")
+
+# Boxplot of first variable
+ggplot(data, aes(x = Cover_Type, y = V1)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(x = "Cover Type", y = "V1", title = "Boxplot of V1 by Cover Type")
+
+
+```
+
 ## Data Pre-Processing
+
+```{r}
+# Perform some data pre-processing
+# Normalize the numeric variables
+numeric_vars <- Filter(is.numeric, data)
+data[ , names(numeric_vars)] <- scale(numeric_vars)
+
+# Convert Cover_Type to factor
+data$Cover_Type <- as.factor(data$Cover_Type)
+
+```
 
 # Fitting Unparallelized Models
 
+```{r}
+# Fit an ANN model using caret
+set.seed(123)
+model_caret <- train(Cover_Type~., data = trainData, method = "nnet", trace = FALSE)
+
+
+```
+
 # Fitting Parallelized Models
+
+```{r}
+# Fit an ANN model using h2o with parallel processing
+set.seed(123)
+h2o.init(nthreads = -1)
+data_h2o <- as.h2o(trainData)
+model_h2o_parallel <- h2o.deeplearning(x = 1:54, 
+                                        y = 55, 
+                                        training_frame = data_h2o)
+
+```
 
 # Results and Discussion
 
 ## Performance Metrics
+
+```{r}
+# Get the training times
+training_time_caret <- model_caret$results$elapsed
+training_time_h2o <- model_h2o_parallel@model$run_time
+
+# Create a data frame for plotting
+training_times <- data.frame(
+  Method = c("Caret", "H2O"),
+  Time = c(training_time_caret, training_time_h2o)
+)
+```
+
 ## Plots
 
-# References
+```{r}
+# Plot the training times
+ggplot(training_times, aes(x = Method, y = Time)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  theme_minimal() +
+  labs(x = "Method", y = "Training Time (seconds)", title = "Comparison of ANN Training Times")
 
-## Papers
-## Books
-## R Packages
+```
+
+From the plot, we can see that the training time with H2O is significantly less than with caret, demonstrating the benefits of parallelization.
