@@ -20,7 +20,7 @@ library(caret)
 library(h2o)
 library(ggplot2)
 library(readr)
-
+library(tidyverse)
 set.seed(122)
 ```
 
@@ -45,7 +45,7 @@ data <- read_csv(url, col_names = col_names)
 
 sample_data <- function(data) {
   # Calculate the number of rows to sample
-  sample_size <- nrow(data) / 10
+  sample_size <- nrow(data) / 50
   
   # Sample the data without replacement
   data <- data[sample(nrow(data), sample_size), ]
@@ -120,25 +120,67 @@ data$Cover_Type <- as.factor(data$Cover_Type)
 
 # Fitting Unparallelized Models
 
+Fitting the control caret model (no hyperparams).
+
 ```{r}
 # Fit an ANN model using caret
 set.seed(123)
-model_caret <- train(Cover_Type~., data = trainData, method = "nnet", trace = FALSE, allowParallel=FALSE)
+model_caret_control <- train(Cover_Type~., data = trainData, method = "nnet", trace = FALSE, allowParallel=FALSE)
+```
 
+Fitting the control h2o model (no hyperparams).
 
+```{r}
+# Fit an ANN model using h2o with no hyperparameters
+set.seed(123)
+h2o.init(nthreads = -1)
+data_h2o <- as.h2o(trainData)
+model_h2o_control <- h2o.deeplearning(x = 1:54, 
+                                        y = 55, 
+                                        training_frame = data_h2o)
 ```
 
 # Fitting Parallelized Models
 
-```{r}
-# Fit an ANN model using h2o with parallel processing
-set.seed(123)
-h2o.init(nthreads = -1)
-data_h2o <- as.h2o(trainData)
-model_h2o_parallel <- h2o.deeplearning(x = 1:54, 
-                                        y = 55, 
-                                        training_frame = data_h2o)
 
+
+Fitting the parallelized caret model
+```{r}
+set.seed(123)
+# Define the control parameters
+ctrl <- trainControl(method = "cv", number = 5)
+
+# Define the hyperparameter search grid
+grid <- expand.grid(.size = c(5, 10), .decay = c(0.1, 0.5))
+
+# Fit the model with caret
+set.seed(123)
+model_caret_parallel <- train(Cover_Type~., data = trainData, method = "nnet", 
+                     trControl = ctrl, tuneGrid = grid, trace = FALSE)
+```
+
+Now for H2o we have a simple grid for the hidden and rate parameters, which are analogous to the size and decay parameters in caret's nnet:
+
+```{r}
+set.seed(123)
+# Define the hyperparameters
+hyper_params <- list(hidden = list(c(5, 5), c(10, 10)), 
+                     rate = c(0.1, 0.5))
+
+# Define the search criteria
+search_criteria <- list(strategy = "RandomDiscrete", 
+                        max_models = 20, 
+                        seed = 123)
+
+# Fit the model with h2o
+set.seed(123)
+grid <- h2o.grid("deeplearning", x = 1:54, y = 55, 
+                 training_frame = data_h2o, 
+                 hyper_params = hyper_params, 
+                 search_criteria = search_criteria)
+
+# Get the best model
+model_h2o_parallel <- h2o.getModel(grid@model_ids[[1]])
 ```
 
 # Results and Discussion
@@ -147,25 +189,38 @@ model_h2o_parallel <- h2o.deeplearning(x = 1:54,
 
 ```{r}
 # Get the training times
-training_time_caret <- model_caret$results$elapsed
-training_time_h2o <- model_h2o_parallel@model$run_time
+time_caret_control <- model_caret_control$results$elapsed
+time_caret_parallel <- model_caret_parallel$results$elapsed
 
+time_h2o_control <- model_h2o_control@model$run_time
+time_h2o_parallel <- model_h2o_parallel@model$run_time
+  
 # Create a data frame for plotting
 training_times <- data.frame(
   Method = c("Caret", "H2O"),
-  Time = c(training_time_caret, training_time_h2o)
+  Time_Control = c(time_caret_control, time_h2o_control),
+  Time_Parallel = c(time_caret_parallel, time_h2o_parallel)
 )
+
+#
+training_times_long <- training_times %>%
+  pivot_longer(cols = c(Time_Control, Time_Parallel),
+               names_to = "Type",
+               values_to = "Time")
 ```
 
 ## Plots
 
+Bar Plot:
+
 ```{r}
-# Plot the training times
-ggplot(training_times, aes(x = Method, y = Time)) +
-  geom_bar(stat = "identity", fill = "steelblue") +
+ggplot(training_times_long, aes(x = Method, y = Time, fill = Type)) +
+  geom_bar(stat = "identity", position = "dodge") +
   theme_minimal() +
-  labs(x = "Method", y = "Training Time (seconds)", title = "Comparison of ANN Training Times")
+  labs(x = "Method", y = "Time", fill = "Type", 
+       title = "Comparison of Training Times by Method and Type")
 
 ```
+
 
 From the plot, we can see that the training time with H2O is significantly less than with caret, demonstrating the benefits of parallelization.
