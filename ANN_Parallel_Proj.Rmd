@@ -123,7 +123,7 @@ data$Cover_Type <- as.factor(data$Cover_Type)
 ```{r}
 # Fit an ANN model using caret
 set.seed(123)
-model_caret <- train(Cover_Type~., data = trainData, method = "nnet", trace = FALSE)
+model_caret <- train(Cover_Type~., data = trainData, method = "nnet", trace = FALSE, allowParallel=FALSE)
 
 
 ```
